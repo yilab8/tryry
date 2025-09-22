@@ -1,0 +1,75 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT: clang_party_api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        env:
+          PROJECT: ${{ env.PROJECT }}
+        with:
+          host:     ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key:      ${{ secrets.SSH_PRIVATE_KEY }}
+          port:     22
+          script: |
+            set -e
+
+            PROJECT=clang_party_api
+            SRC_BASE=/var/www/source
+            DEST_BASE=/var/www
+            SRC_DIR=$SRC_BASE/$PROJECT
+            DEST_DIR=$DEST_BASE/$PROJECT
+
+            sudo git config --global --add safe.directory "$SRC_DIR"
+            
+            echo "=== 1. 建立 /var/www 目錄結構 ==="
+            sudo mkdir -p "$SRC_DIR"
+            sudo mkdir -p "$DEST_DIR"
+
+            echo "=== 2. Clone 或更新程式碼 ==="
+            if [ ! -d "$SRC_DIR/.git" ]; then
+              sudo git clone git@github.com:wowlongserver/clang_party_api.git "$SRC_DIR"
+            fi
+            
+            cd "$SRC_DIR"
+            sudo git fetch --all
+            sudo git reset --hard origin/main
+
+            echo "=== 3. 安裝 Composer 依賴 ==="
+            sudo composer install --no-dev --optimize-autoloader
+
+            echo "=== 4. 設定擁有者與群組 ==="
+            sudo chown -R www-data:www-data "$SRC_DIR" "$DEST_DIR"
+            
+            echo "=== 5. rsync 同步到 production（零停機）=== "
+            sudo rsync -a --delete \
+              --exclude='.env' \
+              --exclude='storage/' \
+              "$SRC_DIR/" "$DEST_DIR/" || true
+
+            echo "=== 6. Laravel 例行工作 ==="
+            cd "$DEST_DIR"
+
+            sudo chown -R www-data:www-data "$DEST_DIR/storage" "$DEST_DIR/bootstrap/cache"
+            sudo chmod -R 775 "$DEST_DIR/storage" "$DEST_DIR/bootstrap/cache"
+            
+            sudo -u www-data php artisan migrate --force
+            sudo -u www-data php artisan config:cache
+            sudo -u www-data php artisan route:cache
+            sudo -u www-data php artisan view:cache
+
+            echo "=== 7. 重載 PHP-FPM ==="
+            sudo systemctl reload php8.4-fpm

@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class GddbSurgameJourneyStarReward extends Model
+{
+    protected $table = 'gddb_surgame_journey_star_rewards';
+
+    // 此表沒有時間戳記欄位
+    public $timestamps = false;
+
+    protected $fillable = [
+        'unique_id',
+        'type',
+        'star_count',
+        'rewards'
+    ];
+
+    protected $casts = [
+        'star_count' => 'integer'
+    ];
+
+    /**
+     * 解析獎勵內容
+     *
+     * @return array
+     */
+    public function getRewardsAttribute($value)
+    {
+        if (is_string($value)) {
+            return json_decode($value, true) ?? [];
+        }
+
+        return $value;
+    }
+
+    /**
+     * 根據類型和星數查詢獎勵
+     *
+     * @param string $type 類型
+     * @param int $starCount 星數
+     * @return self|null
+     */
+    public static function findByTypeAndStars($type, $starCount)
+    {
+        return self::where([
+            'type' => $type,
+            'star_count' => $starCount
+        ])->first();
+    }
+}
