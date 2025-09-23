@@ -17,6 +17,7 @@ class CharacterStarChallengeController extends Controller
         $referrerDomain = parse_url($origin, PHP_URL_HOST) ?? parse_url($referer, PHP_URL_HOST);
 
         if ($referrerDomain != config('services.API_PASS_DOMAIN')) {
+
             $this->middleware('auth:api', ['except' => ['update', 'progress', 'rewards', 'claimReward']]);
         }
     }

@@ -370,7 +370,6 @@ class UserJourneyService
                 $pairs[] = [(int) $parts[0], (int) $parts[1]];
             }
         }
-
         return $pairs;
     }
 
@@ -422,5 +421,6 @@ class UserJourneyService
         }
 
         return $finalRewards;
+
     }
 }

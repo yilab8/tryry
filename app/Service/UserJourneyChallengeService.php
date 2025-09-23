@@ -4,6 +4,7 @@ namespace App\Service;
 use App\Models\GddbSurgameJourneyStarReward;
 use App\Models\UserJourneyStarChallenge;
 use App\Models\UserJourneyStarRewardMap;
+
 use Illuminate\Support\Facades\DB;
 
 class UserJourneyChallengeService
@@ -103,7 +104,6 @@ class UserJourneyChallengeService
     public function getChallengeRewards(int $uid): array
     {
         $totalStars = $this->journeyService->getTotalStars($uid);
-
         $rewardList = GddbSurgameJourneyStarReward::query()
             ->orderBy('star_count')
             ->get();
@@ -219,6 +219,20 @@ class UserJourneyChallengeService
         ], [
             'is_received' => 1,
         ]);
+        return GddbSurgameJourneyStarReward::query()
+            ->orderBy('star_count')
+            ->get()
+            ->map(function (GddbSurgameJourneyStarReward $reward) use ($totalStars) {
+                return [
+                    'unique_id'     => (int) $reward->unique_id,
+                    'type'          => $reward->type,
+                    'star_count'    => (int) $reward->star_count,
+                    'reward_status' => $totalStars >= (int) $reward->star_count ? 1 : 0,
+                    'rewards'       => $this->journeyService->formatRewards($reward->rewards),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
