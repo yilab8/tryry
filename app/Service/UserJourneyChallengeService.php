@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Service;
 
 use App\Models\GddbSurgameJourneyStarReward;
@@ -19,9 +18,10 @@ class UserJourneyChallengeService
     /**
      * 更新玩家星級挑戰進度
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $chapterId  章節編號（允許 unique_id 或資料表 id）
-     * @param  array  $earnedStars  本次取得的星星資訊
+     * @param int   $uid 玩家 UID
+     * @param int   $chapterId 章節編號（允許 unique_id 或資料表 id）
+     * @param array $earnedStars 本次取得的星星資訊
+     * @return array
      */
     public function updateChallengeProgress(int $uid, int $chapterId, array $earnedStars): array
     {
@@ -42,9 +42,9 @@ class UserJourneyChallengeService
 
             if (! $progress) {
                 $progress = new UserJourneyStarChallenge([
-                    'uid' => $uid,
+                    'uid'          => $uid,
                     'challenge_id' => $journey->unique_id,
-                    'stars_mask' => 0,
+                    'stars_mask'   => 0,
                 ]);
             }
 
@@ -58,9 +58,9 @@ class UserJourneyChallengeService
             $this->journeyService->syncTotalStars($uid, $totalStars);
 
             return [
-                'chapter_id' => (int) $progress->challenge_id,
-                'stars_mask' => (int) $progress->stars_mask,
-                'stars' => $this->formatStarOutput((int) $progress->stars_mask),
+                'chapter_id'  => (int) $progress->challenge_id,
+                'stars_mask'  => (int) $progress->stars_mask,
+                'stars'       => $this->formatStarOutput((int) $progress->stars_mask),
                 'stars_total' => $totalStars,
             ];
         });
@@ -69,26 +69,27 @@ class UserJourneyChallengeService
     /**
      * 取得玩家星級挑戰進度概況
      *
-     * @param  int  $uid  玩家 UID
+     * @param int $uid 玩家 UID
+     * @return array
      */
     public function getChallengeProgress(int $uid): array
     {
         $challenges = UserJourneyStarChallenge::where('uid', $uid)->get();
 
         $chapterInfos = [];
-        $totalStars = 0;
+        $totalStars   = 0;
 
         foreach ($challenges as $challenge) {
             $flags = $this->maskToStarFlags((int) $challenge->stars_mask);
             $chapterInfos[] = [
                 'chapter_id' => (int) $challenge->challenge_id,
-                'stars' => $this->formatStarOutput((int) $challenge->stars_mask),
+                'stars'      => $this->formatStarOutput((int) $challenge->stars_mask),
             ];
             $totalStars += array_sum($flags);
         }
 
         return [
-            'stars_total' => $totalStars,
+            'stars_total'          => $totalStars,
             'chapter_informations' => $chapterInfos,
         ];
     }
@@ -96,7 +97,8 @@ class UserJourneyChallengeService
     /**
      * 取得玩家可領取的星級獎勵
      *
-     * @param  int  $uid  玩家 UID
+     * @param int $uid 玩家 UID
+     * @return array
      */
     public function getChallengeRewards(int $uid): array
     {
@@ -120,7 +122,7 @@ class UserJourneyChallengeService
         $rewards = [];
 
         foreach ($rewardList as $reward) {
-            $uniqueId = (int) $reward->unique_id;
+            $uniqueId  = (int) $reward->unique_id;
             $isClaimed = $claimedMap[$uniqueId] ?? 0;
 
             $status = $totalStars >= (int) $reward->star_count ? 1 : 0;
@@ -130,12 +132,12 @@ class UserJourneyChallengeService
             }
 
             $rewards[] = [
-                'unique_id' => $uniqueId,
-                'type' => $reward->type,
-                'star_count' => (int) $reward->star_count,
+                'unique_id'     => $uniqueId,
+                'type'          => $reward->type,
+                'star_count'    => (int) $reward->star_count,
                 'reward_status' => $status,
-                'is_claimed' => (int) $isClaimed,
-                'rewards' => $this->journeyService->formatRewards($reward->rewards),
+                'is_claimed'    => (int) $isClaimed,
+                'rewards'       => $this->journeyService->formatRewards($reward->rewards),
             ];
         }
 
@@ -145,12 +147,14 @@ class UserJourneyChallengeService
     /**
      * 領取指定的星級挑戰獎勵
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $rewardUniqueId  星級獎勵 unique_id
+     * @param int $uid 玩家 UID
+     * @param int $rewardUniqueId 星級獎勵 unique_id
+     * @return array
      */
     public function claimStarReward(int $uid, int $rewardUniqueId): array
     {
         $reward = GddbSurgameJourneyStarReward::where('unique_id', $rewardUniqueId)->first();
+
         if (! $reward) {
             throw new \RuntimeException('StarReward:0001');
         }
@@ -170,12 +174,13 @@ class UserJourneyChallengeService
             if ($claimed && (int) $claimed->is_received === 1) {
                 throw new \RuntimeException('StarReward:0003');
             }
+
             $formattedRewards = $this->journeyService->formatRewards($reward->rewards);
             $deliveredRewards = $this->journeyService->grantRewardsToUser($uid, $formattedRewards, '星級挑戰獎勵領取');
 
             UserJourneyStarRewardMap::updateOrCreate(
                 [
-                    'uid' => $uid,
+                    'uid'              => $uid,
                     'reward_unique_id' => (int) $reward->unique_id,
                 ],
                 [
@@ -184,10 +189,10 @@ class UserJourneyChallengeService
             );
 
             return [
-                'reward_id' => (int) $reward->unique_id,
-                'star_count' => (int) $reward->star_count,
-                'reward_status' => 1,
-                'rewards' => $deliveredRewards,
+                'reward_unique_id' => (int) $reward->unique_id,
+                'star_count'       => (int) $reward->star_count,
+                'reward_status'    => 2,
+                'rewards'          => $deliveredRewards,
             ];
         });
     }
@@ -195,8 +200,9 @@ class UserJourneyChallengeService
     /**
      * 標記星級獎勵已領取
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $rewardUniqueId  星級獎勵 unique_id
+     * @param int $uid 玩家 UID
+     * @param int $rewardUniqueId 星級獎勵 unique_id
+     * @return bool
      */
     public function markStarRewardClaimed(int $uid, int $rewardUniqueId): bool
     {
@@ -207,7 +213,7 @@ class UserJourneyChallengeService
         }
 
         return (bool) UserJourneyStarRewardMap::query()->updateOrCreate([
-            'uid' => $uid,
+            'uid'              => $uid,
             'reward_unique_id' => (int) $reward->unique_id,
         ], [
             'is_received' => 1,
@@ -218,7 +224,8 @@ class UserJourneyChallengeService
     /**
      * 將 payload 轉換成星星位元圖
      *
-     * @param  array  $earnedStars  取得的星星資訊
+     * @param array $earnedStars 取得的星星資訊
+     * @return int
      */
     protected function buildStarMask(array $earnedStars): int
     {
@@ -261,7 +268,8 @@ class UserJourneyChallengeService
     /**
      * 將位元圖轉成星星陣列
      *
-     * @param  int  $mask  星星位元
+     * @param int $mask 星星位元
+     * @return array
      */
     protected function maskToStarFlags(int $mask): array
     {
@@ -277,7 +285,8 @@ class UserJourneyChallengeService
     /**
      * 產生標準化的星級輸出格式
      *
-     * @param  int  $mask  星星位元
+     * @param int $mask 星星位元
+     * @return array
      */
     protected function formatStarOutput(int $mask): array
     {
@@ -293,7 +302,8 @@ class UserJourneyChallengeService
     /**
      * 計算玩家所有章節的星星總數
      *
-     * @param  int  $uid  玩家 UID
+     * @param int $uid 玩家 UID
+     * @return int
      */
     protected function calculateTotalStars(int $uid): int
     {

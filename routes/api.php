@@ -343,23 +343,18 @@ Route::group(['middleware' => 'api'], function ($router) {
                 // 重置人物等級
                 Route::post('/reset_character_lv_up', [App\Http\Controllers\Api\CharacterController::class, 'resetCharacterLevel']);
             });
-
             // 冒險章節
             Route::group(['prefix' => 'journey'], function () {
-                Route::get('/progress', [App\Http\Controllers\Api\CharacterJourneyController::class, 'progress']);
                 Route::post('/update', [App\Http\Controllers\Api\CharacterJourneyController::class, 'update']);
-
-                // 獎勵
-                Route::get('/rewards_status', [App\Http\Controllers\Api\CharacterJourneyController::class, 'rewards']);
+                Route::get('/progress', [App\Http\Controllers\Api\CharacterJourneyController::class, 'progress']);
+                Route::get('/rewards', [App\Http\Controllers\Api\CharacterJourneyController::class, 'rewards']);
                 Route::post('/reward/claim', [App\Http\Controllers\Api\CharacterJourneyController::class, 'claimReward']);
             });
             // 星級挑戰
             Route::group(['prefix' => 'star_challenge'], function () {
-                Route::get('/progress', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'progress']);
                 Route::post('/update', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'update']);
-
-                // 獎勵
-                Route::get('/rewards_status', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'rewards']);
+                Route::get('/progress', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'progress']);
+                Route::get('/rewards', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'rewards']);
                 Route::post('/reward/claim', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'claimReward']);
 
             });

@@ -1,12 +1,11 @@
 <?php
-
 namespace App\Service;
 
 use App\Models\GddbSurgameJourney;
 use App\Models\GddbSurgameJourneyReward;
-use App\Models\UserItemLogs;
 use App\Models\UserJourneyRecord;
 use App\Models\UserJourneyRewardMap;
+use App\Models\UserItemLogs;
 use App\Models\Users;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -16,9 +15,10 @@ class UserJourneyService
     /**
      * 更新或建立玩家章節進度
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $chapterId  章節編號（允許 unique_id 或資料表 id）
-     * @param  int  $wave  最新波次
+     * @param int $uid 玩家 UID
+     * @param int $chapterId 章節編號（允許 unique_id 或資料表 id）
+     * @param int $wave 最新波次
+     * @return array
      */
     public function updateJourneyProgress(int $uid, int $chapterId, int $wave): array
     {
@@ -34,17 +34,17 @@ class UserJourneyService
             if (! $record->exists) {
                 // 第一次建立時補上預設值
                 $record->current_journey_id = 0;
-                $record->current_wave = 0;
-                $record->total_stars = 0;
+                $record->current_wave       = 0;
+                $record->total_stars        = 0;
             }
 
             $record->current_journey_id = (int) $journey->unique_id;
-            $record->current_wave = max(0, $wave);
+            $record->current_wave       = max(0, $wave);
             $record->save();
 
             return [
                 'chapter_id' => (int) $record->current_journey_id,
-                'wave' => (int) $record->current_wave,
+                'wave'       => (int) $record->current_wave,
             ];
         });
     }
@@ -52,7 +52,8 @@ class UserJourneyService
     /**
      * 取得玩家目前章節進度
      *
-     * @param  int  $uid  玩家 UID
+     * @param int $uid 玩家 UID
+     * @return array
      */
     public function getCurrentProgress(int $uid): array
     {
@@ -64,7 +65,7 @@ class UserJourneyService
 
         return [[
             'chapter_id' => (int) $record->current_journey_id,
-            'wave' => (int) $record->current_wave,
+            'wave'       => (int) $record->current_wave,
         ]];
 
     }
@@ -72,8 +73,9 @@ class UserJourneyService
     /**
      * 取得指定玩家的章節獎勵資訊
      *
-     * @param  int  $uid  玩家 UID7
-     * @param  int|null  $chapterId  指定章節（可選，預設取玩家目前章節）
+     * @param int $uid 玩家 UID
+     * @param int|null $chapterId 指定章節（可選，預設取玩家目前章節）
+     * @return array
      */
     public function getChapterRewards(int $uid, ?int $chapterId = null): array
     {
@@ -85,32 +87,8 @@ class UserJourneyService
 
         $targetChapterId = $chapterId ?? (int) $record->current_journey_id;
 
-        // 撈出玩家已領取的 reward
-        $claimedIds = UserJourneyRewardMap::query()
-            ->where('uid', $uid)
-            ->pluck('reward_id')
-            ->toArray();
+        $journey = $this->findJourneyByIdentifier($targetChapterId);
 
-        // 一次撈出所有 reward，依章節分組
-        $allRewards = GddbSurgameJourneyReward::query()
-            ->with('journey')
-            ->get()
-            ->groupBy('journey_id');
-
-        $actualChapterId = $targetChapterId;
-
-        // 找出最小未領的章節
-        foreach ($allRewards as $journeyId => $rewards) {
-            $diff = $rewards->pluck('id')->diff($claimedIds);
-
-            if ($diff->isNotEmpty()) {
-                $actualChapterId = $rewards->first()->journey->unique_id;
-                break;
-            }
-        }
-
-        // 找到章節
-        $journey = $this->findJourneyByIdentifier($actualChapterId);
         if (! $journey) {
             return [];
         }
@@ -126,43 +104,33 @@ class UserJourneyService
             return [];
         }
 
-        // 撈出該章節已領取的 reward
-        $chapterClaimedMap = UserJourneyRewardMap::query()
+        $claimedMap = UserJourneyRewardMap::query()
             ->where('uid', $uid)
             ->whereIn('reward_id', $rewardList->pluck('id'))
             ->pluck('is_received', 'reward_id')
-            ->map(fn ($v) => (int) $v)
+            ->map(function ($value) {
+                return (int) $value;
+            })
             ->toArray();
 
         $rewards = [];
 
         foreach ($rewardList as $reward) {
-            $rewardId = (int) $reward->id;
-            $wave = (int) $reward->wave;
-            $isClaimed = (int) ($chapterClaimedMap[$rewardId] ?? 0);
+            $rewardId  = (int) $reward->id;
+            $isClaimed = $claimedMap[$rewardId] ?? 0;
 
-            // 判斷是否解鎖
-            if ($journey->unique_id < $record->current_journey_id) {
-                $isUnlocked = 1;
-            } elseif ($journey->unique_id == $record->current_journey_id) {
-                $isUnlocked = $currentWave >= $wave ? 1 : 0;
-            } else {
-                $isUnlocked = 0;
-            }
+            $status = $currentWave >= (int) $reward->wave ? 1 : 0;
 
-            // 是否可領取
-            $canClaim = 0;
-            if ($isUnlocked && ! $isClaimed) {
-                $canClaim = $this->canClaimReward($journey->unique_id, $wave, $uid) ? 1 : 0;
+            if ($isClaimed) {
+                $status = 2; // 2 代表已領取獎勵
             }
 
             $rewards[] = [
-                'chapter_id' => $journey->unique_id,
-                'wave' => $wave,
-                'is_unlocked' => $isUnlocked,
-                'is_claimed' => $isClaimed,
-                'can_claim' => $canClaim,
-                'rewards' => $this->formatRewards($reward->rewards),
+                'reward_id'     => $rewardId,
+                'wave'          => (int) $reward->wave,
+                'reward_status' => $status,
+                'is_claimed'    => (int) $isClaimed,
+                'rewards'       => $this->formatRewards($reward->rewards),
             ];
         }
 
@@ -172,8 +140,9 @@ class UserJourneyService
     /**
      * 領取指定的章節獎勵
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $rewardId  章節獎勵 ID
+     * @param int $uid 玩家 UID
+     * @param int $rewardId 章節獎勵 ID
+     * @return array
      */
     public function claimChapterReward(int $uid, int $rewardId): array
     {
@@ -195,14 +164,11 @@ class UserJourneyService
             throw new \RuntimeException('JourneyReward:0003');
         }
 
-        // 1. 玩家還沒到這個章節
-        if ((int) $record->current_journey_id < (int) $journey->unique_id) {
+        if ((int) $record->current_journey_id !== (int) $journey->unique_id) {
             throw new \RuntimeException('JourneyReward:0002');
         }
 
-        // 2. 玩家正好在這個章節，但 wave 還不夠
-        if ((int) $record->current_journey_id === (int) $journey->unique_id
-           && (int) $record->current_wave < (int) $reward->wave) {
+        if ((int) $record->current_wave < (int) $reward->wave) {
             throw new \RuntimeException('JourneyReward:0002');
         }
 
@@ -216,12 +182,12 @@ class UserJourneyService
                 throw new \RuntimeException('JourneyReward:0004');
             }
 
-            $rewards = $this->formatRewards($reward->rewards);
+            $rewards       = $this->formatRewards($reward->rewards);
             $deliveredList = $this->grantRewardsToUser($uid, $rewards, '冒險章節獎勵領取');
 
             UserJourneyRewardMap::updateOrCreate(
                 [
-                    'uid' => $uid,
+                    'uid'       => $uid,
                     'reward_id' => (int) $reward->id,
                 ],
                 [
@@ -230,11 +196,11 @@ class UserJourneyService
             );
 
             return [
-                // 'reward_id'     => (int) $reward->id,
-                'chapter_id' => (int) $journey->unique_id,
-                'wave' => (int) $reward->wave,
-                'reward_status' => 1,
-                'rewards' => $deliveredList,
+                'reward_id'     => (int) $reward->id,
+                'chapter_id'    => (int) $journey->unique_id,
+                'wave'          => (int) $reward->wave,
+                'reward_status' => 2,
+                'rewards'       => $deliveredList,
             ];
         });
     }
@@ -242,8 +208,9 @@ class UserJourneyService
     /**
      * 標記章節獎勵已領取
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $rewardId  章節獎勵 ID
+     * @param int $uid 玩家 UID
+     * @param int $rewardId 章節獎勵 ID
+     * @return bool
      */
     public function markChapterRewardClaimed(int $uid, int $rewardId): bool
     {
@@ -254,7 +221,7 @@ class UserJourneyService
         }
 
         return (bool) UserJourneyRewardMap::query()->updateOrCreate([
-            'uid' => $uid,
+            'uid'       => $uid,
             'reward_id' => $reward->id,
         ], [
             'is_received' => 1,
@@ -264,8 +231,9 @@ class UserJourneyService
     /**
      * 同步玩家章節累積星數
      *
-     * @param  int  $uid  玩家 UID
-     * @param  int  $totalStars  最新星數
+     * @param int $uid 玩家 UID
+     * @param int $totalStars 最新星數
+     * @return void
      */
     public function syncTotalStars(int $uid, int $totalStars): void
     {
@@ -273,7 +241,7 @@ class UserJourneyService
 
         if (! $record->exists) {
             $record->current_journey_id = 0;
-            $record->current_wave = 0;
+            $record->current_wave       = 0;
         }
 
         $record->total_stars = max(0, $totalStars);
@@ -281,64 +249,10 @@ class UserJourneyService
     }
 
     /**
-     * 從章節與波次取得 rewardId
-     */
-    public function getRewardIdByChapterAndWave(int $chapterId, int $wave): ?int
-    {
-        $journey = $this->findJourneyByIdentifier($chapterId);
-        if (! $journey) {
-            return null;
-        }
-
-        $reward = GddbSurgameJourneyReward::where('journey_id', $journey->id)
-            ->where('wave', $wave)
-            ->first();
-
-        return $reward ? (int) $reward->id : null;
-    }
-
-    /**
-     * 檢查是否能領取 reward（必須按順序，跨章節）
-     */
-    public function canClaimReward(int $chapterId, int $wave, int $uid): bool
-    {
-        $journey = $this->findJourneyByIdentifier($chapterId);
-        if (! $journey) {
-            return false;
-        }
-
-        // 取出所有「必須先領的 reward」
-        $requiredRewards = GddbSurgameJourneyReward::whereHas('journey', function ($q) use ($chapterId) {
-            $q->where('unique_id', '<', $chapterId); // 前面章節
-        })
-            ->orWhere(function ($q) use ($chapterId, $wave) {
-                $q->whereHas('journey', function ($q2) use ($chapterId) {
-                    $q2->where('unique_id', $chapterId); // 同章節
-                })
-                    ->where('wave', '<', $wave); // 當前 wave 之前
-            })
-            ->pluck('id'); // 直接取出 id array
-
-        if ($requiredRewards->isEmpty()) {
-            return true; // 沒有前置需求，直接可領
-        }
-
-        // 撈玩家已領取的 reward
-        $claimedIds = UserJourneyRewardMap::where('uid', $uid)
-            ->whereIn('reward_id', $requiredRewards)
-            ->pluck('reward_id')
-            ->toArray();
-
-        // 確認是否全部都有領
-        $diff = $requiredRewards->diff($claimedIds);
-
-        return $diff->isEmpty();
-    }
-
-    /**
      * 取得玩家目前累積星數
      *
-     * @param  int  $uid  玩家 UID
+     * @param int $uid 玩家 UID
+     * @return int
      */
     public function getTotalStars(int $uid): int
     {
@@ -348,7 +262,8 @@ class UserJourneyService
     /**
      * 依照章節編號搜尋資料
      *
-     * @param  int  $identifier  unique_id 或主鍵 id
+     * @param int $identifier unique_id 或主鍵 id
+     * @return GddbSurgameJourney|null
      */
     public function findJourneyByIdentifier(int $identifier): ?GddbSurgameJourney
     {
@@ -360,7 +275,8 @@ class UserJourneyService
     /**
      * 將獎勵字串轉換為統一格式
      *
-     * @param  mixed  $rawRewards  獎勵原始資料
+     * @param mixed $rawRewards 獎勵原始資料
+     * @return array
      */
     public function formatRewards(mixed $rawRewards): array
     {
@@ -404,16 +320,15 @@ class UserJourneyService
                 if ($itemId !== null && $amount !== null) {
                     $rewards[] = [
                         'item_id' => (int) $itemId,
-                        'amount' => (int) $amount,
+                        'amount'  => (int) $amount,
                     ];
-
                     continue;
                 }
 
                 if (isset($entry[0], $entry[1])) {
                     $rewards[] = [
                         'item_id' => (int) $entry[0],
-                        'amount' => (int) $entry[1],
+                        'amount'  => (int) $entry[1],
                     ];
                 }
             }
@@ -425,7 +340,8 @@ class UserJourneyService
     /**
      * 解析簡單的 item/amount 字串格式
      *
-     * @param  string  $value  原始字串
+     * @param string $value 原始字串
+     * @return array
      */
     protected function parseRewardPairs(string $value): array
     {
@@ -445,27 +361,26 @@ class UserJourneyService
                         (int) $match[2],
                     ];
                 }
-
                 continue;
             }
 
             $parts = preg_split('/[,:\s]+/', $segment);
-            $parts = array_values(array_filter($parts, fn ($part) => $part !== ''));
+            $parts = array_values(array_filter($parts, fn($part) => $part !== ''));
 
             if (count($parts) >= 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
                 $pairs[] = [(int) $parts[0], (int) $parts[1]];
             }
         }
-
         return $pairs;
     }
 
     /**
      * 發送指定獎勵給玩家
      *
-     * @param  int  $uid  玩家 UID
-     * @param  array  $rewards  獎勵內容
-     * @param  string  $memo  發放備註
+     * @param int    $uid 玩家 UID
+     * @param array  $rewards 獎勵內容
+     * @param string $memo 發放備註
+     * @return array
      */
     public function grantRewardsToUser(int $uid, array $rewards, string $memo): array
     {
@@ -502,10 +417,9 @@ class UserJourneyService
 
             $finalRewards[] = [
                 'item_id' => isset($result['item_id']) ? (int) $result['item_id'] : $itemId,
-                'amount' => isset($result['qty']) ? (int) $result['qty'] : $amount,
+                'amount'  => isset($result['qty']) ? (int) $result['qty'] : $amount,
             ];
         }
-
         return $finalRewards;
 
     }
