@@ -401,6 +401,22 @@ class ErrorService extends AppService
                 return self::returnData($from, $error, __('角色星級材料不足'), 'character_star_material_not_enough');
                 break;
 
+            // 冒險章節相關
+            case 'Journey:0001':
+                return self::returnData($from, $error, __('章節參數錯誤'), 'journey_chapter');
+                break;
+            case 'Journey:0002':
+                return self::returnData($from, $error, __('波次參數錯誤'), 'journey_wave');
+                break;
+
+            // 星級挑戰相關
+            case 'StarChallenge:0001':
+                return self::returnData($from, $error, __('星級資料格式錯誤'), 'star_challenge_payload');
+                break;
+            case 'StarChallenge:0002':
+                return self::returnData($from, $error, __('指定章節不存在'), 'star_challenge_chapter');
+                break;
+
             // 角色軍階相關
             case 'GRADE:0001':
                 return self::returnData($from, $error, __('軍階資料錯誤'), 'character_grade_data_error');

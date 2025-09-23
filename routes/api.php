@@ -343,6 +343,18 @@ Route::group(['middleware' => 'api'], function ($router) {
                 // 重置人物等級
                 Route::post('/reset_character_lv_up', [App\Http\Controllers\Api\CharacterController::class, 'resetCharacterLevel']);
             });
+            // 冒險章節
+            Route::group(['prefix' => 'journey'], function () {
+                Route::post('/update', [App\Http\Controllers\Api\CharacterJourneyController::class, 'update']);
+                Route::get('/progress', [App\Http\Controllers\Api\CharacterJourneyController::class, 'progress']);
+                Route::get('/rewards', [App\Http\Controllers\Api\CharacterJourneyController::class, 'rewards']);
+            });
+            // 星級挑戰
+            Route::group(['prefix' => 'star_challenge'], function () {
+                Route::post('/update', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'update']);
+                Route::get('/progress', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'progress']);
+                Route::get('/rewards', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'rewards']);
+            });
             // 陣位
             Route::group(['prefix' => 'deploy_slot'], function () {
                 // 取得陣位資訊
