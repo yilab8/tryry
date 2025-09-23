@@ -67,6 +67,7 @@ class UserJourneyService
             'chapter_id' => (int) $record->current_journey_id,
             'wave'       => (int) $record->current_wave,
         ]];
+
     }
 
     /**
@@ -137,73 +138,57 @@ class UserJourneyService
     }
 
     /**
-     * 領取符合條件的章節獎勵
+     * 領取指定的章節獎勵
      *
      * @param int $uid 玩家 UID
-     * @param int $chapterId 章節編號（允許 unique_id 或主鍵）
-     * @param int $wave 玩家當前波次
+     * @param int $rewardId 章節獎勵 ID
      * @return array
      */
-    public function claimChapterReward(int $uid, int $chapterId, int $wave): array
+    public function claimChapterReward(int $uid, int $rewardId): array
     {
-        $journey = $this->findJourneyByIdentifier($chapterId);
+        $reward = GddbSurgameJourneyReward::find($rewardId);
+
+        if (! $reward) {
+            throw new \RuntimeException('JourneyReward:0001');
+        }
+
+        $journey = GddbSurgameJourney::find($reward->journey_id);
 
         if (! $journey) {
             throw new \RuntimeException('JourneyReward:0001');
         }
 
-        return DB::transaction(function () use ($uid, $journey, $wave) {
-            $record = UserJourneyRecord::where('uid', $uid)->lockForUpdate()->first();
+        $record = UserJourneyRecord::where('uid', $uid)->first();
 
-            if (! $record) {
-                throw new \RuntimeException('JourneyReward:0003');
-            }
+        if (! $record) {
+            throw new \RuntimeException('JourneyReward:0003');
+        }
 
-            if ((int) $record->current_journey_id !== (int) $journey->unique_id) {
-                throw new \RuntimeException('JourneyReward:0002');
-            }
+        if ((int) $record->current_journey_id !== (int) $journey->unique_id) {
+            throw new \RuntimeException('JourneyReward:0002');
+        }
 
-            $availableWave = min((int) $record->current_wave, (int) max(0, $wave));
+        if ((int) $record->current_wave < (int) $reward->wave) {
+            throw new \RuntimeException('JourneyReward:0002');
+        }
 
-            $rewardCandidates = GddbSurgameJourneyReward::query()
-                ->where('journey_id', $journey->id)
-                ->where('wave', '<=', $availableWave)
-                ->orderBy('wave')
-                ->get();
-
-            if ($rewardCandidates->isEmpty()) {
-                throw new \RuntimeException('JourneyReward:0002');
-            }
-
-            $claimedMap = UserJourneyRewardMap::query()
+        return DB::transaction(function () use ($uid, $reward, $journey) {
+            $claimed = UserJourneyRewardMap::lockForUpdate()
                 ->where('uid', $uid)
-                ->whereIn('reward_id', $rewardCandidates->pluck('id'))
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('reward_id');
+                ->where('reward_id', $reward->id)
+                ->first();
 
-            $targetReward = null;
-
-            foreach ($rewardCandidates as $candidate) {
-                $claimed = $claimedMap->get($candidate->id);
-
-                if (! $claimed || (int) $claimed->is_received !== 1) {
-                    $targetReward = $candidate;
-                    break;
-                }
-            }
-
-            if (! $targetReward) {
+            if ($claimed && (int) $claimed->is_received === 1) {
                 throw new \RuntimeException('JourneyReward:0004');
             }
 
-            $formattedRewards = $this->formatRewards($targetReward->rewards);
-            $deliveredList    = $this->grantRewardsToUser($uid, $formattedRewards, '冒險章節獎勵領取');
+            $rewards       = $this->formatRewards($reward->rewards);
+            $deliveredList = $this->grantRewardsToUser($uid, $rewards, '冒險章節獎勵領取');
 
             UserJourneyRewardMap::updateOrCreate(
                 [
                     'uid'       => $uid,
-                    'reward_id' => (int) $targetReward->id,
+                    'reward_id' => (int) $reward->id,
                 ],
                 [
                     'is_received' => 1,
@@ -211,9 +196,9 @@ class UserJourneyService
             );
 
             return [
-                'reward_id'     => (int) $targetReward->id,
+                'reward_id'     => (int) $reward->id,
                 'chapter_id'    => (int) $journey->unique_id,
-                'wave'          => (int) $targetReward->wave,
+                'wave'          => (int) $reward->wave,
                 'reward_status' => 2,
                 'rewards'       => $deliveredList,
             ];
@@ -386,7 +371,6 @@ class UserJourneyService
                 $pairs[] = [(int) $parts[0], (int) $parts[1]];
             }
         }
-
         return $pairs;
     }
 
@@ -436,7 +420,7 @@ class UserJourneyService
                 'amount'  => isset($result['qty']) ? (int) $result['qty'] : $amount,
             ];
         }
-
         return $finalRewards;
+
     }
 }

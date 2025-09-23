@@ -103,7 +103,6 @@ class UserJourneyChallengeService
     public function getChallengeRewards(int $uid): array
     {
         $totalStars = $this->journeyService->getTotalStars($uid);
-
         $rewardList = GddbSurgameJourneyStarReward::query()
             ->orderBy('star_count')
             ->get();
@@ -219,6 +218,7 @@ class UserJourneyChallengeService
         ], [
             'is_received' => 1,
         ]);
+
     }
 
     /**

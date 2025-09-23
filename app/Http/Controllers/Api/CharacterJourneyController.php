@@ -102,6 +102,7 @@ class CharacterJourneyController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
+
         $chapterId = $request->input('chapter_id');
         $wave      = $request->input('wave');
 
@@ -115,6 +116,7 @@ class CharacterJourneyController extends Controller
 
         try {
             $result = $this->journeyService->claimChapterReward($uid, (int) $chapterId, (int) $wave);
+
         } catch (\RuntimeException $exception) {
             $code = $exception->getMessage();
 
@@ -125,6 +127,7 @@ class CharacterJourneyController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
         } catch (\Throwable $throwable) {
             \Log::error('章節獎勵領取失敗', [
+
                 'uid'        => $uid,
                 'chapter_id' => $chapterId,
                 'wave'       => $wave,
