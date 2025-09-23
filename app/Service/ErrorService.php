@@ -402,12 +402,20 @@ class ErrorService extends AppService
                 break;
 
             // 冒險章節相關
-            case 'Journey:0001':
+            case 'JOURNEY:0001':
                 return self::returnData($from, $error, __('章節參數錯誤'), 'journey_chapter');
                 break;
-            case 'Journey:0002':
+            case 'JOURNEY:0002':
                 return self::returnData($from, $error, __('波次參數錯誤'), 'journey_wave');
                 break;
+            case 'JOURNEY:0003':
+                return self::returnData($from, $error, __('無效的獎勵資訊'), 'journey_reward');
+                break;
+            case 'JOURNEY:0004':
+                return self::returnData($from, $error, __('尚有前置獎勵未領取，請依序領取。'), 'journey_chapter_not_found');
+                break;
+
+
             case 'JourneyReward:0001':
                 return self::returnData($from, $error, __('章節獎勵不存在'), 'journey_reward_not_found');
                 break;
@@ -443,6 +451,7 @@ class ErrorService extends AppService
             case 'StarReward:0005':
                 return self::returnData($from, $error, __('星級獎勵參數錯誤'), 'star_reward_param');
                 break;
+
 
             // 角色軍階相關
             case 'GRADE:0001':
