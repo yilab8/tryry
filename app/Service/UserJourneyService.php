@@ -67,6 +67,7 @@ class UserJourneyService
             'chapter_id' => (int) $record->current_journey_id,
             'wave'       => (int) $record->current_wave,
         ]];
+
     }
 
     /**
@@ -419,7 +420,6 @@ class UserJourneyService
                 'amount'  => isset($result['qty']) ? (int) $result['qty'] : $amount,
             ];
         }
-
         return $finalRewards;
 
     }

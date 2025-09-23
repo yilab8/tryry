@@ -444,7 +444,6 @@ class ErrorService extends AppService
                 return self::returnData($from, $error, __('星級獎勵參數錯誤'), 'star_reward_param');
                 break;
 
-
             // 角色軍階相關
             case 'GRADE:0001':
                 return self::returnData($from, $error, __('軍階資料錯誤'), 'character_grade_data_error');
