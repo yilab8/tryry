@@ -408,6 +408,21 @@ class ErrorService extends AppService
             case 'Journey:0002':
                 return self::returnData($from, $error, __('波次參數錯誤'), 'journey_wave');
                 break;
+            case 'JourneyReward:0001':
+                return self::returnData($from, $error, __('章節獎勵不存在'), 'journey_reward_not_found');
+                break;
+            case 'JourneyReward:0002':
+                return self::returnData($from, $error, __('章節獎勵條件不足'), 'journey_reward_unmet');
+                break;
+            case 'JourneyReward:0003':
+                return self::returnData($from, $error, __('尚未建立章節進度'), 'journey_reward_progress_missing');
+                break;
+            case 'JourneyReward:0004':
+                return self::returnData($from, $error, __('章節獎勵已領取'), 'journey_reward_claimed');
+                break;
+            case 'JourneyReward:0005':
+                return self::returnData($from, $error, __('章節獎勵參數錯誤'), 'journey_reward_param');
+                break;
 
             // 星級挑戰相關
             case 'StarChallenge:0001':
@@ -416,6 +431,19 @@ class ErrorService extends AppService
             case 'StarChallenge:0002':
                 return self::returnData($from, $error, __('指定章節不存在'), 'star_challenge_chapter');
                 break;
+            case 'StarReward:0001':
+                return self::returnData($from, $error, __('星級獎勵不存在'), 'star_reward_not_found');
+                break;
+            case 'StarReward:0002':
+                return self::returnData($from, $error, __('星數不足，無法領取獎勵'), 'star_reward_not_enough');
+                break;
+            case 'StarReward:0003':
+                return self::returnData($from, $error, __('星級獎勵已領取'), 'star_reward_claimed');
+                break;
+            case 'StarReward:0005':
+                return self::returnData($from, $error, __('星級獎勵參數錯誤'), 'star_reward_param');
+                break;
+
 
             // 角色軍階相關
             case 'GRADE:0001':

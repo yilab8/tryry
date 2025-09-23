@@ -17,7 +17,8 @@ class CharacterJourneyController extends Controller
         $referrerDomain = parse_url($origin, PHP_URL_HOST) ?? parse_url($referer, PHP_URL_HOST);
 
         if ($referrerDomain != config('services.API_PASS_DOMAIN')) {
-            $this->middleware('auth:api', ['except' => ['update', 'progress', 'rewards']]);
+
+            $this->middleware('auth:api', ['except' => ['update', 'progress', 'rewards', 'claimReward']]);
         }
     }
 
@@ -89,6 +90,46 @@ class CharacterJourneyController extends Controller
         $rewards = $this->journeyService->getChapterRewards($uid, $chapterId);
 
         return response()->json(['data' => $rewards]);
+    }
+
+    /**
+     * 領取章節獎勵
+     */
+    public function claimReward(Request $request)
+    {
+        $uid = $this->resolveUid($request);
+
+        if (! $uid) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
+        }
+
+        $rewardId = $request->input('reward_id');
+
+        if (! is_numeric($rewardId) || (int) $rewardId <= 0) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'JourneyReward:0005'), 422);
+        }
+
+        try {
+            $result = $this->journeyService->claimChapterReward($uid, (int) $rewardId);
+        } catch (\RuntimeException $exception) {
+            $code = $exception->getMessage();
+
+            if (is_string($code) && strpos($code, ':') !== false) {
+                return response()->json(ErrorService::errorCode(__METHOD__, $code), 422);
+            }
+
+            return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
+        } catch (\Throwable $throwable) {
+            \Log::error('章節獎勵領取失敗', [
+                'uid'       => $uid,
+                'reward_id' => $rewardId,
+                'message'   => $throwable->getMessage(),
+            ]);
+
+            return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
+        }
+
+        return response()->json(['data' => $result]);
     }
 
     /**

@@ -348,12 +348,15 @@ Route::group(['middleware' => 'api'], function ($router) {
                 Route::post('/update', [App\Http\Controllers\Api\CharacterJourneyController::class, 'update']);
                 Route::get('/progress', [App\Http\Controllers\Api\CharacterJourneyController::class, 'progress']);
                 Route::get('/rewards', [App\Http\Controllers\Api\CharacterJourneyController::class, 'rewards']);
+                Route::post('/reward/claim', [App\Http\Controllers\Api\CharacterJourneyController::class, 'claimReward']);
             });
             // 星級挑戰
             Route::group(['prefix' => 'star_challenge'], function () {
                 Route::post('/update', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'update']);
                 Route::get('/progress', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'progress']);
                 Route::get('/rewards', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'rewards']);
+                Route::post('/reward/claim', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'claimReward']);
+
             });
             // 陣位
             Route::group(['prefix' => 'deploy_slot'], function () {

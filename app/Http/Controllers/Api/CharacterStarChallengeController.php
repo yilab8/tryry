@@ -17,7 +17,8 @@ class CharacterStarChallengeController extends Controller
         $referrerDomain = parse_url($origin, PHP_URL_HOST) ?? parse_url($referer, PHP_URL_HOST);
 
         if ($referrerDomain != config('services.API_PASS_DOMAIN')) {
-            $this->middleware('auth:api', ['except' => ['update', 'progress', 'rewards']]);
+
+            $this->middleware('auth:api', ['except' => ['update', 'progress', 'rewards', 'claimReward']]);
         }
     }
 
@@ -86,6 +87,46 @@ class CharacterStarChallengeController extends Controller
         $rewards = $this->challengeService->getChallengeRewards($uid);
 
         return response()->json(['data' => $rewards]);
+    }
+
+    /**
+     * 領取星級挑戰獎勵
+     */
+    public function claimReward(Request $request)
+    {
+        $uid = $this->resolveUid($request);
+
+        if (! $uid) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
+        }
+
+        $rewardUniqueId = $request->input('reward_unique_id');
+
+        if (! is_numeric($rewardUniqueId) || (int) $rewardUniqueId <= 0) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'StarReward:0005'), 422);
+        }
+
+        try {
+            $result = $this->challengeService->claimStarReward($uid, (int) $rewardUniqueId);
+        } catch (\RuntimeException $exception) {
+            $code = $exception->getMessage();
+
+            if (is_string($code) && strpos($code, ':') !== false) {
+                return response()->json(ErrorService::errorCode(__METHOD__, $code), 422);
+            }
+
+            return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
+        } catch (\Throwable $throwable) {
+            \Log::error('星級獎勵領取失敗', [
+                'uid'               => $uid,
+                'reward_unique_id'  => $rewardUniqueId,
+                'message'           => $throwable->getMessage(),
+            ]);
+
+            return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
+        }
+
+        return response()->json(['data' => $result]);
     }
 
     /**

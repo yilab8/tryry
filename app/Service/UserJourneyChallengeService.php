@@ -3,6 +3,8 @@ namespace App\Service;
 
 use App\Models\GddbSurgameJourneyStarReward;
 use App\Models\UserJourneyStarChallenge;
+use App\Models\UserJourneyStarRewardMap;
+
 use Illuminate\Support\Facades\DB;
 
 class UserJourneyChallengeService
@@ -102,7 +104,121 @@ class UserJourneyChallengeService
     public function getChallengeRewards(int $uid): array
     {
         $totalStars = $this->journeyService->getTotalStars($uid);
+        $rewardList = GddbSurgameJourneyStarReward::query()
+            ->orderBy('star_count')
+            ->get();
 
+        if ($rewardList->isEmpty()) {
+            return [];
+        }
+
+        $claimedMap = UserJourneyStarRewardMap::query()
+            ->where('uid', $uid)
+            ->pluck('is_received', 'reward_unique_id')
+            ->map(function ($value) {
+                return (int) $value;
+            })
+            ->toArray();
+
+        $rewards = [];
+
+        foreach ($rewardList as $reward) {
+            $uniqueId  = (int) $reward->unique_id;
+            $isClaimed = $claimedMap[$uniqueId] ?? 0;
+
+            $status = $totalStars >= (int) $reward->star_count ? 1 : 0;
+
+            if ($isClaimed) {
+                $status = 2; // 2 代表已領取獎勵
+            }
+
+            $rewards[] = [
+                'unique_id'     => $uniqueId,
+                'type'          => $reward->type,
+                'star_count'    => (int) $reward->star_count,
+                'reward_status' => $status,
+                'is_claimed'    => (int) $isClaimed,
+                'rewards'       => $this->journeyService->formatRewards($reward->rewards),
+            ];
+        }
+
+        return $rewards;
+    }
+
+    /**
+     * 領取指定的星級挑戰獎勵
+     *
+     * @param int $uid 玩家 UID
+     * @param int $rewardUniqueId 星級獎勵 unique_id
+     * @return array
+     */
+    public function claimStarReward(int $uid, int $rewardUniqueId): array
+    {
+        $reward = GddbSurgameJourneyStarReward::where('unique_id', $rewardUniqueId)->first();
+
+        if (! $reward) {
+            throw new \RuntimeException('StarReward:0001');
+        }
+
+        $totalStars = $this->journeyService->getTotalStars($uid);
+
+        if ($totalStars < (int) $reward->star_count) {
+            throw new \RuntimeException('StarReward:0002');
+        }
+
+        return DB::transaction(function () use ($uid, $reward) {
+            $claimed = UserJourneyStarRewardMap::lockForUpdate()
+                ->where('uid', $uid)
+                ->where('reward_unique_id', $reward->unique_id)
+                ->first();
+
+            if ($claimed && (int) $claimed->is_received === 1) {
+                throw new \RuntimeException('StarReward:0003');
+            }
+
+            $formattedRewards = $this->journeyService->formatRewards($reward->rewards);
+            $deliveredRewards = $this->journeyService->grantRewardsToUser($uid, $formattedRewards, '星級挑戰獎勵領取');
+
+            UserJourneyStarRewardMap::updateOrCreate(
+                [
+                    'uid'              => $uid,
+                    'reward_unique_id' => (int) $reward->unique_id,
+                ],
+                [
+                    'is_received' => 1,
+                ]
+            );
+
+            return [
+                'reward_unique_id' => (int) $reward->unique_id,
+                'star_count'       => (int) $reward->star_count,
+                'reward_status'    => 2,
+                'rewards'          => $deliveredRewards,
+            ];
+        });
+    }
+
+    /**
+     * 標記星級獎勵已領取
+     *
+     * @param int $uid 玩家 UID
+     * @param int $rewardUniqueId 星級獎勵 unique_id
+     * @return bool
+     */
+    public function markStarRewardClaimed(int $uid, int $rewardUniqueId): bool
+    {
+        $reward = GddbSurgameJourneyStarReward::where('unique_id', $rewardUniqueId)->first();
+
+        if (! $reward) {
+            return false;
+        }
+
+        return (bool) UserJourneyStarRewardMap::query()->updateOrCreate([
+            'uid'              => $uid,
+            'reward_unique_id' => (int) $reward->unique_id,
+        ], [
+            'is_received' => 1,
+        ]);
         return GddbSurgameJourneyStarReward::query()
             ->orderBy('star_count')
             ->get()
