@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CharacterDeploySlot as DeploySlot;
 use App\Models\UserCharacter;
+use App\Models\UserEquipmentSession;
 use App\Models\Users;
 use App\Models\UserSlotEquipment;
 use App\Service\DeploySlotService;
@@ -27,26 +28,71 @@ class DeploySlotController extends Controller
     // 取得特定人的 slot，若無則自動建立
     public function showItems(Request $request, $uid = null)
     {
+        // 確認玩家存在
         $user = Users::where('uid', $uid)->first();
 
         if (! $user || $uid === null) {
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
-        $slot = DeploySlot::where('uid', $uid)->get();
+        // 讀取玩家陣位，若不存在則初始化
+        $slots = DeploySlot::where('uid', $uid)->orderBy('position', 'asc')->get();
 
-        if ($slot->isEmpty()) {
+        if ($slots->isEmpty()) {
             $this->initDeploySlot($uid);
-            $slot = DeploySlot::where('uid', $uid)->get();
+            $slots = DeploySlot::where('uid', $uid)->orderBy('position', 'asc')->get();
         }
 
-        $slotArray = [];
+        $slotIds = $slots->pluck('id');
 
-        for ($i = 0; $i < 5; $i++) {
-            $slotArray['slot_' . $i . '_level'] = $slot->firstWhere('position', $i)->level ?? 1;
+        // 撈取裝備與強化資訊，僅整理現有資料
+        $equipmentBySlot = collect();
+        $upgradeBySlot   = collect();
+
+        if ($slotIds->isNotEmpty()) {
+            $equipmentBySlot = UserEquipmentSession::whereIn('slot_id', $slotIds)
+                ->where('is_used', 1)
+                ->orderBy('position', 'asc')
+                ->get()
+                ->groupBy('slot_id');
+
+            $upgradeBySlot = UserSlotEquipment::where('uid', $uid)
+                ->whereIn('slot_id', $slotIds)
+                ->get()
+                ->groupBy('slot_id');
         }
 
-        return response()->json(['data' => $slotArray]);
+        // 組裝符合前端需求的陣位資料
+        $response = $slots->map(function ($slot) use ($equipmentBySlot, $upgradeBySlot) {
+            $slotEquipments = $equipmentBySlot->get($slot->id, collect())
+                ->filter(fn($equipment) => $equipment->position !== null);
+
+            $upgradeMap = $upgradeBySlot->get($slot->id, collect())->keyBy('position');
+
+            $equipments = $slotEquipments
+                ->map(function ($equipment) use ($upgradeMap) {
+                    $position   = (int) $equipment->position;
+                    $upgradeRow = $upgradeMap->get($position);
+
+                    return [
+                        'equip_index'   => $position,
+                        'equip_uid'     => (int) $equipment->id,
+                        'refine_level'  => (int) ($upgradeRow->refine_level ?? 1),
+                        'enhance_level' => (int) ($upgradeRow->enhance_level ?? 1),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return [
+                'slot_index' => (int) ($slot->position ?? 0),
+                'slot_level' => (int) ($slot->level ?? 1),
+                'equipments' => $equipments,
+                'runes'      => [],
+            ];
+        })->values()->all();
+
+        return response()->json(['data' => $response]);
     }
 
     // 更新或建立 deploy slot，僅更新有傳的欄位

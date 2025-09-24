@@ -10,14 +10,12 @@ class UserJourneyStarChallenge extends Model
 
     protected $fillable = [
         'uid',
-        'journey_id',
-        'stars',
-        'completed_at'
+        'challenge_id',
+        'stars_mask',
     ];
 
     protected $casts = [
-        'stars' => 'integer',
-        'completed_at' => 'datetime'
+        'stars_mask' => 'integer',
     ];
 
     /**
@@ -33,7 +31,7 @@ class UserJourneyStarChallenge extends Model
      */
     public function journey()
     {
-        return $this->belongsTo(GddbSurgameJourney::class, 'journey_id', 'unique_id');
+        return $this->belongsTo(GddbSurgameJourney::class, 'challenge_id', 'unique_id');
     }
 
     /**
@@ -43,5 +41,4 @@ class UserJourneyStarChallenge extends Model
     {
         return $this->belongsTo(UserJourneyRecord::class, 'uid', 'uid');
     }
-
 }
