@@ -27,26 +27,77 @@ class DeploySlotController extends Controller
     // 取得特定人的 slot，若無則自動建立
     public function showItems(Request $request, $uid = null)
     {
+        // 確認玩家存在
         $user = Users::where('uid', $uid)->first();
 
         if (! $user || $uid === null) {
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
-        $slot = DeploySlot::where('uid', $uid)->get();
+        // 讀取玩家陣位，若不存在則初始化
+        $slots = DeploySlot::with([
+            'slotEquipments' => function ($query) {
+                $query->orderBy('position', 'asc');
+            },
+            'equipments' => function ($query) {
+                $query->where('is_used', 1)->orderBy('position', 'asc');
+            },
+        ])->where('uid', $uid)->orderBy('position', 'asc')->get();
 
-        if ($slot->isEmpty()) {
+        if ($slots->isEmpty()) {
             $this->initDeploySlot($uid);
-            $slot = DeploySlot::where('uid', $uid)->get();
+            $slots = DeploySlot::with([
+                'slotEquipments' => function ($query) {
+                    $query->orderBy('position', 'asc');
+                },
+                'equipments' => function ($query) {
+                    $query->where('is_used', 1)->orderBy('position', 'asc');
+                },
+            ])->where('uid', $uid)->orderBy('position', 'asc')->get();
         }
 
-        $slotArray = [];
-
-        for ($i = 0; $i < 5; $i++) {
-            $slotArray['slot_' . $i . '_level'] = $slot->firstWhere('position', $i)->level ?? 1;
+        // 確保裝備強化資料存在
+        if ($slots->isNotEmpty() && $slots->contains(fn($slot) => $slot->slotEquipments->isEmpty())) {
+            app(DeploySlotService::class)->initUserSlotEquipment($uid);
+            $slots = DeploySlot::with([
+                'slotEquipments' => function ($query) {
+                    $query->orderBy('position', 'asc');
+                },
+                'equipments' => function ($query) {
+                    $query->where('is_used', 1)->orderBy('position', 'asc');
+                },
+            ])->where('uid', $uid)->orderBy('position', 'asc')->get();
         }
 
-        return response()->json(['data' => $slotArray]);
+        // 組裝符合前端需求的陣位資料
+        $response = $slots->map(function ($slot) {
+            $upgradeMap = $slot->slotEquipments->keyBy('position');
+
+            $equipments = $slot->equipments
+                ->filter(fn($equipment) => $equipment->position !== null)
+                ->map(function ($equipment) use ($upgradeMap) {
+                    $position   = (int) $equipment->position;
+                    $upgradeRow = $upgradeMap->get($position);
+
+                    return [
+                        'equip_index'   => $position,
+                        'equip_uid'     => (int) $equipment->id,
+                        'refine_level'  => (int) ($upgradeRow->refine_level ?? 1),
+                        'enhance_level' => (int) ($upgradeRow->enhance_level ?? 1),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return [
+                'slot_index' => (int) $slot->position,
+                'slot_level' => (int) $slot->level,
+                'equipments' => $equipments,
+                'runes'      => [],
+            ];
+        })->values()->all();
+
+        return response()->json(['data' => $response]);
     }
 
     // 更新或建立 deploy slot，僅更新有傳的欄位
