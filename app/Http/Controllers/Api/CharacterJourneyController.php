@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Service\ErrorService;
@@ -12,8 +13,7 @@ class CharacterJourneyController extends Controller
     public function __construct(UserJourneyService $journeyService, Request $request)
     {
         $this->journeyService = $journeyService;
-        $origin         = $request->header('Origin');
-        $referer        = $request->header('Referer');
+
         $referrerDomain = parse_url($origin, PHP_URL_HOST) ?? parse_url($referer, PHP_URL_HOST);
 
         if ($referrerDomain != config('services.API_PASS_DOMAIN')) {
@@ -33,6 +33,7 @@ class CharacterJourneyController extends Controller
         }
 
         $chapterId = $request->input('chapter_id');
+
         $wave      = $request->input('wave');
 
         if (! is_numeric($chapterId) || (int) $chapterId <= 0) {
@@ -41,6 +42,7 @@ class CharacterJourneyController extends Controller
 
         if (! is_numeric($wave) || (int) $wave < 0) {
             return response()->json(ErrorService::errorCode(__METHOD__, 'Journey:0002'), 422);
+
         }
 
         try {
@@ -83,10 +85,12 @@ class CharacterJourneyController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
+
         $chapterId = $request->input('chapter_id');
         $chapterId = is_numeric($chapterId) ? (int) $chapterId : null;
 
         $rewards = $this->journeyService->getChapterRewards($uid, $chapterId);
+
 
         return response()->json(['data' => $rewards]);
     }
@@ -103,18 +107,30 @@ class CharacterJourneyController extends Controller
         }
 
         $chapterId = $request->input('chapter_id');
-        $wave      = $request->input('wave');
+
+        $wave = $request->input('wave');
 
         if (! is_numeric($chapterId) || (int) $chapterId <= 0) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'Journey:0001'), 422);
+            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0001'), 422);
         }
 
         if (! is_numeric($wave) || (int) $wave < 0) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'Journey:0002'), 422);
+            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0002'), 422);
         }
 
+        // 取得獎勵id
+        $rewardId = $this->journeyService->getRewardIdByChapterAndWave($chapterId, $wave);
+
+        if (! $rewardId) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0003'), 422);
+        }
+
+        if (! $this->journeyService->canClaimReward($chapterId, $wave, $uid)) {
+            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0004'), 422);
+        }
         try {
-            $result = $this->journeyService->claimChapterReward($uid, (int) $chapterId, (int) $wave);
+            $result = $this->journeyService->claimChapterReward($uid, $rewardId);
+
         } catch (\RuntimeException $exception) {
             $code = $exception->getMessage();
 
@@ -125,10 +141,12 @@ class CharacterJourneyController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);
         } catch (\Throwable $throwable) {
             \Log::error('章節獎勵領取失敗', [
-                'uid'        => $uid,
+
+                'uid' => $uid,
                 'chapter_id' => $chapterId,
-                'wave'       => $wave,
-                'message'    => $throwable->getMessage(),
+                'wave' => $wave,
+                'message' => $throwable->getMessage(),
+
             ]);
 
             return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);

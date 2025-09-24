@@ -14,4 +14,12 @@ class GddbSurgameJourneyReward extends Model
         'wave',
         'rewards',
     ];
+
+       /**
+     * 關聯到 Journey
+     */
+    public function journey()
+    {
+        return $this->belongsTo(GddbSurgameJourney::class, 'journey_id', 'unique_id');
+    }
 }

@@ -1,11 +1,12 @@
 <?php
+
 namespace App\Service;
 
 use App\Models\GddbSurgameJourney;
 use App\Models\GddbSurgameJourneyReward;
+use App\Models\UserItemLogs;
 use App\Models\UserJourneyRecord;
 use App\Models\UserJourneyRewardMap;
-use App\Models\UserItemLogs;
 use App\Models\Users;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -236,7 +237,8 @@ class UserJourneyService
         }
 
         return (bool) UserJourneyRewardMap::query()->updateOrCreate([
-            'uid'       => $uid,
+
+            'uid' => $uid,
             'reward_id' => $reward->id,
         ], [
             'is_received' => 1,
@@ -382,6 +384,7 @@ class UserJourneyService
             $parts = preg_split('/[,:\s]+/', $segment);
             $parts = array_values(array_filter($parts, fn($part) => $part !== ''));
 
+
             if (count($parts) >= 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
                 $pairs[] = [(int) $parts[0], (int) $parts[1]];
             }
@@ -393,10 +396,9 @@ class UserJourneyService
     /**
      * 發送指定獎勵給玩家
      *
-     * @param int    $uid 玩家 UID
-     * @param array  $rewards 獎勵內容
-     * @param string $memo 發放備註
-     * @return array
+     * @param  int  $uid  玩家 UID
+     * @param  array  $rewards  獎勵內容
+     * @param  string  $memo  發放備註
      */
     public function grantRewardsToUser(int $uid, array $rewards, string $memo): array
     {
