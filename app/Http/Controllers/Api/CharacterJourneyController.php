@@ -13,8 +13,7 @@ class CharacterJourneyController extends Controller
     public function __construct(UserJourneyService $journeyService, Request $request)
     {
         $this->journeyService = $journeyService;
-        $origin = $request->header('Origin');
-        $referer = $request->header('Referer');
+
         $referrerDomain = parse_url($origin, PHP_URL_HOST) ?? parse_url($referer, PHP_URL_HOST);
 
         if ($referrerDomain != config('services.API_PASS_DOMAIN')) {
@@ -34,14 +33,16 @@ class CharacterJourneyController extends Controller
         }
 
         $chapterId = $request->input('chapter_id');
-        $wave = $request->input('wave');
+
+        $wave      = $request->input('wave');
 
         if (! is_numeric($chapterId) || (int) $chapterId <= 0) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0001'), 422);
+            return response()->json(ErrorService::errorCode(__METHOD__, 'Journey:0001'), 422);
         }
 
         if (! is_numeric($wave) || (int) $wave < 0) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0002'), 422);
+            return response()->json(ErrorService::errorCode(__METHOD__, 'Journey:0002'), 422);
+
         }
 
         try {
@@ -84,7 +85,12 @@ class CharacterJourneyController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
-        $rewards = $this->journeyService->getChapterRewards($uid);
+
+        $chapterId = $request->input('chapter_id');
+        $chapterId = is_numeric($chapterId) ? (int) $chapterId : null;
+
+        $rewards = $this->journeyService->getChapterRewards($uid, $chapterId);
+
 
         return response()->json(['data' => $rewards]);
     }
@@ -101,6 +107,7 @@ class CharacterJourneyController extends Controller
         }
 
         $chapterId = $request->input('chapter_id');
+
         $wave = $request->input('wave');
 
         if (! is_numeric($chapterId) || (int) $chapterId <= 0) {
@@ -123,6 +130,7 @@ class CharacterJourneyController extends Controller
         }
         try {
             $result = $this->journeyService->claimChapterReward($uid, $rewardId);
+
         } catch (\RuntimeException $exception) {
             $code = $exception->getMessage();
 
@@ -138,6 +146,7 @@ class CharacterJourneyController extends Controller
                 'chapter_id' => $chapterId,
                 'wave' => $wave,
                 'message' => $throwable->getMessage(),
+
             ]);
 
             return response()->json(ErrorService::errorCode(__METHOD__, 'SYSTEM:0003'), 422);

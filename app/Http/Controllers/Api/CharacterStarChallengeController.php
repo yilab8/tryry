@@ -100,7 +100,9 @@ class CharacterStarChallengeController extends Controller
             return response()->json(ErrorService::errorCode(__METHOD__, 'AUTH:0005'), 422);
         }
 
+
         $rewardUniqueId = $request->input('reward_id');
+
 
         if (! is_numeric($rewardUniqueId) || (int) $rewardUniqueId <= 0) {
             return response()->json(ErrorService::errorCode(__METHOD__, 'StarReward:0005'), 422);

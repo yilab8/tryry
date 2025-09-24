@@ -344,6 +344,7 @@ Route::group(['middleware' => 'api'], function ($router) {
                 Route::post('/reset_character_lv_up', [App\Http\Controllers\Api\CharacterController::class, 'resetCharacterLevel']);
             });
 
+
             // 冒險章節
             Route::group(['prefix' => 'journey'], function () {
                 Route::get('/progress', [App\Http\Controllers\Api\CharacterJourneyController::class, 'progress']);
@@ -355,13 +356,13 @@ Route::group(['middleware' => 'api'], function ($router) {
             });
             // 星級挑戰
             Route::group(['prefix' => 'star_challenge'], function () {
+
                 Route::get('/progress', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'progress']);
                 Route::post('/update', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'update']);
 
                 // 獎勵
                 Route::get('/rewards_status', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'rewards']);
                 Route::post('/reward/claim', [App\Http\Controllers\Api\CharacterStarChallengeController::class, 'claimReward']);
-
             });
             // 陣位
             Route::group(['prefix' => 'deploy_slot'], function () {

@@ -402,6 +402,7 @@ class ErrorService extends AppService
                 break;
 
             // 冒險章節相關
+
             case 'JOURNEY:0001':
                 return self::returnData($from, $error, __('章節參數錯誤'), 'journey_chapter');
                 break;
