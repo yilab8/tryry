@@ -142,10 +142,9 @@ class UserJourneyService
      *
      * @param int $uid 玩家 UID
      * @param int $chapterId 章節編號（允許 unique_id 或主鍵）
-     * @param int $wave 玩家當前波次
      * @return array
      */
-    public function claimChapterReward(int $uid, int $chapterId, int $wave): array
+    public function claimChapterReward(int $uid, int $chapterId): array
     {
         $journey = $this->findJourneyByIdentifier($chapterId);
 
@@ -153,7 +152,7 @@ class UserJourneyService
             throw new \RuntimeException('JourneyReward:0001');
         }
 
-        return DB::transaction(function () use ($uid, $journey, $wave) {
+        return DB::transaction(function () use ($uid, $journey) {
             $record = UserJourneyRecord::where('uid', $uid)->lockForUpdate()->first();
 
             if (! $record) {
@@ -164,7 +163,7 @@ class UserJourneyService
                 throw new \RuntimeException('JourneyReward:0002');
             }
 
-            $availableWave = min((int) $record->current_wave, (int) max(0, $wave));
+            $availableWave = (int) $record->current_wave;
 
             $rewardCandidates = GddbSurgameJourneyReward::query()
                 ->where('journey_id', $journey->id)
@@ -183,39 +182,71 @@ class UserJourneyService
                 ->get()
                 ->keyBy('reward_id');
 
-            $targetReward = null;
+            $claimableRewards = [];
 
             foreach ($rewardCandidates as $candidate) {
                 $claimed = $claimedMap->get($candidate->id);
 
                 if (! $claimed || (int) $claimed->is_received !== 1) {
-                    $targetReward = $candidate;
-                    break;
+                    $claimableRewards[] = $candidate;
                 }
             }
 
-            if (! $targetReward) {
+            if (empty($claimableRewards)) {
                 throw new \RuntimeException('JourneyReward:0004');
             }
 
-            $formattedRewards = $this->formatRewards($targetReward->rewards);
-            $deliveredList    = $this->grantRewardsToUser($uid, $formattedRewards, '冒險章節獎勵領取');
+            $aggregatedRewards = [];
+            $claimedWaves      = [];
 
-            UserJourneyRewardMap::updateOrCreate(
-                [
-                    'uid'       => $uid,
-                    'reward_id' => (int) $targetReward->id,
-                ],
-                [
-                    'is_received' => 1,
-                ]
-            );
+            foreach ($claimableRewards as $reward) {
+                $claimedWaves[] = (int) $reward->wave;
+
+                foreach ($this->formatRewards($reward->rewards) as $item) {
+                    $itemId = (int) ($item['item_id'] ?? 0);
+                    $amount = (int) ($item['amount'] ?? 0);
+
+                    if ($itemId <= 0 || $amount <= 0) {
+                        continue;
+                    }
+
+                    if (! isset($aggregatedRewards[$itemId])) {
+                        $aggregatedRewards[$itemId] = 0;
+                    }
+
+                    $aggregatedRewards[$itemId] += $amount;
+                }
+            }
+
+            $finalRewards = [];
+
+            foreach ($aggregatedRewards as $itemId => $amount) {
+                $finalRewards[] = [
+                    'item_id' => (int) $itemId,
+                    'amount'  => (int) $amount,
+                ];
+            }
+
+            $deliveredList = $this->grantRewardsToUser($uid, $finalRewards, '冒險章節獎勵領取');
+
+            foreach ($claimableRewards as $reward) {
+                UserJourneyRewardMap::updateOrCreate(
+                    [
+                        'uid'       => $uid,
+                        'reward_id' => (int) $reward->id,
+                    ],
+                    [
+                        'is_received' => 1,
+                    ]
+                );
+            }
+
+            sort($claimedWaves);
 
             return [
-                'reward_id'     => (int) $targetReward->id,
                 'chapter_id'    => (int) $journey->unique_id,
-                'wave'          => (int) $targetReward->wave,
-                'reward_status' => 2,
+                'reward_status' => 1,
+                'claimed_wave'  => array_values(array_unique($claimedWaves)),
                 'rewards'       => $deliveredList,
             ];
         });
