@@ -159,15 +159,21 @@ class UserJourneyService
                 throw new \RuntimeException('JourneyReward:0003');
             }
 
-            if ((int) $record->current_journey_id !== (int) $journey->unique_id) {
+            $playerChapterId = (int) $record->current_journey_id;
+            $targetChapterId = (int) $journey->unique_id;
+
+            if ($playerChapterId < $targetChapterId) {
                 throw new \RuntimeException('JourneyReward:0002');
             }
 
             $availableWave = (int) $record->current_wave;
+            $isCurrentChapter = $playerChapterId === $targetChapterId;
 
             $rewardCandidates = GddbSurgameJourneyReward::query()
                 ->where('journey_id', $journey->id)
-                ->where('wave', '<=', $availableWave)
+                ->when($isCurrentChapter, function ($query) use ($availableWave) {
+                    $query->where('wave', '<=', $availableWave);
+                })
                 ->orderBy('wave')
                 ->get();
 
