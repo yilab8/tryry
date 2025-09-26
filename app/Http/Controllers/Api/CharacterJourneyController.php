@@ -108,28 +108,11 @@ class CharacterJourneyController extends Controller
 
         $chapterId = $request->input('chapter_id');
 
-        $wave = $request->input('wave');
-
         if (! is_numeric($chapterId) || (int) $chapterId <= 0) {
             return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0001'), 422);
         }
-
-        if (! is_numeric($wave) || (int) $wave < 0) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0002'), 422);
-        }
-
-        // 取得獎勵id
-        $rewardId = $this->journeyService->getRewardIdByChapterAndWave($chapterId, $wave);
-
-        if (! $rewardId) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0003'), 422);
-        }
-
-        if (! $this->journeyService->canClaimReward($chapterId, $wave, $uid)) {
-            return response()->json(ErrorService::errorCode(__METHOD__, 'JOURNEY:0004'), 422);
-        }
         try {
-            $result = $this->journeyService->claimChapterReward($uid, $rewardId);
+            $result = $this->journeyService->claimChapterReward($uid, (int) $chapterId);
 
         } catch (\RuntimeException $exception) {
             $code = $exception->getMessage();
@@ -144,7 +127,6 @@ class CharacterJourneyController extends Controller
 
                 'uid' => $uid,
                 'chapter_id' => $chapterId,
-                'wave' => $wave,
                 'message' => $throwable->getMessage(),
 
             ]);
